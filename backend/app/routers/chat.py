@@ -9,8 +9,8 @@ import datetime
 import requests
 from openai import OpenAI
 from app.database import get_db, engine, Base
-from app.models import Conversation, ChatMessageDB, Persona
-
+from app.services.auth import get_current_user
+from app.models import User, ChatSession, Message, MessageType, Persona
 #####################
 # Unified System Prompt Function
 #####################
@@ -92,6 +92,15 @@ router = APIRouter(
 # START Route
 #####################
 
+# @router.post("/start", response_model=HistoryResponse)
+# @router.post("/start/", response_model=HistoryResponse)
+# def start_new_conversation(db: Session = Depends(get_db)):
+#     new_conversation = Conversation()
+#     db.add(new_conversation)
+#     db.commit()
+#     db.refresh(new_conversation)
+#     return HistoryResponse(conversation_id=new_conversation.id, messages=[])
+
 @router.post("/start", response_model=HistoryResponse)
 @router.post("/start/", response_model=HistoryResponse)
 def start_new_conversation(db: Session = Depends(get_db)):
@@ -105,20 +114,32 @@ def start_new_conversation(db: Session = Depends(get_db)):
 # History Route
 #####################
 
+# @router.get("/history/{conversation_id}", response_model=HistoryResponse)
+# def get_conversation_history(conversation_id: int, db: Session = Depends(get_db)):
+#     """Retrieves all messages for a given conversation."""
+#     conversation = db.query(Conversation).filter(Conversation.id == conversation_id).first()
+#     if not conversation:
+#         raise HTTPException(status_code=404, detail="Conversation not found.")
+    
+#     messages = [ChatMessage(role=msg.role, content=msg.content) for msg in conversation.messages]
+#     return HistoryResponse(conversation_id=conversation.id, messages=messages)
+
 @router.get("/history/{conversation_id}", response_model=HistoryResponse)
 def get_conversation_history(conversation_id: int, db: Session = Depends(get_db)):
-    """Retrieves all messages for a given conversation."""
-    conversation = db.query(Conversation).filter(Conversation.id == conversation_id).first()
-    if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation not found.")
+    """Retrieves all messages for a given chat session."""
+    chat_session = db.query(ChatSession).filter(ChatSession.id == conversation_id).first()
+    if not chat_session:
+        raise HTTPException(status_code=404, detail="Chat session not found.")
     
-    messages = [ChatMessage(role=msg.role, content=msg.content) for msg in conversation.messages]
-    return HistoryResponse(conversation_id=conversation.id, messages=messages)
-
-#####################
-# Voice Session Helper Function
-#####################
-
+    messages = []
+    for msg in chat_session.messages:
+        messages.append(
+            ChatMessage(
+                role=msg.message_type.value,  # Enum to string
+                content=msg.content
+            )
+        )
+    return HistoryResponse(conversation_id=chat_session.id, messages=messages)
 async def create_voice_session_response(request: ChatRequest, conversation: Conversation, persona: Persona, db: Session):
     """
     Creates an OpenAI realtime session for voice conversation.
@@ -250,12 +271,117 @@ async def create_voice_session_response(request: ChatRequest, conversation: Conv
 # Chat Route
 #####################
 
+# @router.post("/", response_model=ChatResponse)
+# async def handle_chat_request(request: ChatRequest, db: Session = Depends(get_db)):
+#     if not settings.OPENAI_API_KEY or "your_openai_key" in settings.OPENAI_API_KEY:
+#         raise HTTPException(status_code=500, detail="OpenAI API key is not configured on the server.")
+
+#     if request.conversation_id:
+#         conversation = db.query(Conversation).filter(Conversation.id == request.conversation_id).first()
+#         if not conversation:
+#             raise HTTPException(status_code=404, detail="Conversation not found.")
+#     else:
+#         conversation = Conversation()
+#         db.add(conversation)
+#         db.commit()
+#         db.refresh(conversation)
+
+#     persona = db.query(Persona).filter(Persona.name == request.influencer_name).first()
+#     if not persona:
+#         raise HTTPException(
+#             status_code=404,
+#             detail=f"No persona found for influencer '{request.influencer_name}'"
+#         )
+
+#     # --- Step 2: Retrieve Chat History from DB ---
+#     history_from_db = [{"role": msg.role, "content": msg.content} for msg in conversation.messages]
+    
+#     retrieved_context_snippets = []
+#     try:
+#         embeddings = OpenAIEmbeddings(model="text-embedding-3-large", openai_api_key=settings.OPENAI_API_KEY)
+#         vectorstore = Chroma(
+#             collection_name="onboarding_docs",
+#             persist_directory="db",
+#             embedding_function=embeddings
+#         )
+
+#         retrieved_docs = vectorstore.similarity_search(request.user_query, k=3) # Retrieve top 3 chunks
+#         retrieved_context_snippets = [doc.page_content for doc in retrieved_docs]
+#         print(f"Retrieved {len(retrieved_context_snippets)} context snippets from ChromaDB.")
+
+#         for i, doc in enumerate(retrieved_docs):
+#             if hasattr(doc, 'metadata') and doc.metadata:
+#                 print(f"Context {i+1} metadata: {doc.metadata}")
+
+#     except Exception as e:
+#         print(f"Warning: Could not connect to or retrieve from ChromaDB. Proceeding without context. Error: {e}")
+
+
+#     if retrieved_context_snippets:
+#         system_prompt = (
+#             f"You are an AI assistant embodying this persona:\n\n{persona.description}\n\n"
+#             f"Base all your answers on the following retrieved context where possible."
+#             f"If the context doesn't fully answer the user's question, respond using the tone, "
+#             f"style, and personality of {persona.name}.\n\n"
+#             "--- Relevant Context ---\n"
+#             + "\n".join([f"Context {i+1}: {snippet}" for i, snippet in enumerate(retrieved_context_snippets)])
+#             + "\n--- End Context ---"
+#             "Instructions:\n"
+#             f"- Stay in character as {persona.name}\n"
+#             "- Answer primarily using the provided context\n"
+#             "- If context is insufficient, acknowledge it and extrapolate\n"
+#             "- Be conversational and engaging"
+#         )
+#     else:
+#         system_prompt = (
+#             f"You are an AI assistant embodying this persona:\n\n{persona.description}\n\n"
+#             f"Answer in the tone, style, and personality of {persona.name}, "
+#             "even if no contextual information is available."
+#         )
+
+
+#     # Combine the system prompt, previous messages, and the new user query.
+#     full_chat_history = [{"role": "system", "content": system_prompt}]
+#     full_chat_history.extend(history_from_db)
+#     full_chat_history.append({"role": "user", "content": request.user_query})
+
+#     try:
+#         client = OpenAI(api_key=settings.OPENAI_API_KEY)
+
+#         response = client.chat.completions.create(
+#             model="gpt-4o",
+#             messages=full_chat_history,
+#             temperature=0.7,
+#             max_tokens=1000,
+#         )
+#         ai_message = response.choices[0].message.content
+
+#     except Exception as e:
+#         print(f"Error calling OpenAI API: {e}")
+#         raise HTTPException(status_code=500, detail="Failed to get a response from the AI model.")
+    
+#     user_message_db = ChatMessageDB(conversation_id=conversation.id, role="user", content=request.user_query)
+#     ai_message_db = ChatMessageDB(conversation_id=conversation.id, role="assistant", content=ai_message)
+#     db.add(user_message_db)
+#     db.add(ai_message_db)
+#     db.commit()
+#     db.refresh(user_message_db)
+#     db.refresh(ai_message_db)
+
+
+#     # --- Step 4: Return the Final Response ---
+#     return ChatResponse(
+#         conversation_id=conversation.id,
+#         ai_response=ai_message,
+#         retrieved_context=retrieved_context_snippets
+#     )
+
 @router.post("/", response_model=ChatResponse)
 async def handle_chat_request(request: ChatRequest, db: Session = Depends(get_db)):
     if not settings.OPENAI_API_KEY or "your_openai_key" in settings.OPENAI_API_KEY:
         raise HTTPException(status_code=500, detail="OpenAI API key is not configured on the server.")
-
-    # Common logic for both text chat and voice session
+    
+    # Load or create ChatSession
     if request.conversation_id:
         conversation = db.query(Conversation).filter(Conversation.id == request.conversation_id).first()
         if not conversation:
@@ -272,8 +398,8 @@ async def handle_chat_request(request: ChatRequest, db: Session = Depends(get_db
             status_code=404,
             detail=f"No persona found for influencer '{request.influencer_name}'"
         )
-
-    # If this is a voice session request, handle it differently
+    
+    collection_name = f"persona_{request.influencer_name.lower().replace(' ', '_')}"
     if request.is_voice_session:
         print(f"Processing voice session request for {request.influencer_name}")
         try:
@@ -288,70 +414,58 @@ async def handle_chat_request(request: ChatRequest, db: Session = Depends(get_db
                 detail=f"Voice session creation failed: {str(voice_error)}"
             )
     
-    # Otherwise, handle as regular text chat (existing logic below)
-
-    # --- Step 2: Retrieve Chat History from DB ---
-    history_from_db = [{"role": msg.role, "content": msg.content} for msg in conversation.messages]
+    # --- Retrieve chat history from DB ---
+    history_from_db = [{"role": msg.message_type.value, "content": msg.content} for msg in chat_session.messages]
     
     retrieved_context_snippets = []
     try:
         embeddings = OpenAIEmbeddings(model="text-embedding-3-large", openai_api_key=settings.OPENAI_API_KEY)
         vectorstore = Chroma(
-            collection_name="onboarding_docs",
+            collection_name=collection_name,
             persist_directory="db",
             embedding_function=embeddings
         )
 
-        # Use both specific query and general knowledge queries for comprehensive context
-        all_context_docs = []
+        retrieved_docs = vectorstore.similarity_search(request.user_query, k=3)  # Top 3 chunks
+        retrieved_context_snippets = [doc.page_content for doc in retrieved_docs]
+        print(f"Retrieved {len(retrieved_context_snippets)} context snippets from ChromaDB.")
         
-        # First, search with the specific user query
-        specific_docs = vectorstore.similarity_search(request.user_query, k=3)
-        all_context_docs.extend(specific_docs)
-        
-        # Then, add broader context queries for better coverage
-        broad_queries = [
-            f"{persona.name} knowledge base",
-            f"{persona.name} content information",
-            "textbook content knowledge"
-        ]
-        
-        for query in broad_queries:
-            try:
-                docs = vectorstore.similarity_search(query, k=2)  # Fewer per broad query
-                all_context_docs.extend(docs)
-            except Exception as e:
-                print(f"Error retrieving context for query '{query}': {e}")
-        
-        # Remove duplicates by content
-        seen_content = set()
-        unique_docs = []
-        for doc in all_context_docs:
-            if doc.page_content not in seen_content:
-                seen_content.add(doc.page_content)
-                unique_docs.append(doc)
-        
-        # Limit to top 8 most relevant chunks
-        retrieved_context_snippets = [doc.page_content for doc in unique_docs[:8]]
-        print(f"Retrieved {len(retrieved_context_snippets)} comprehensive context snippets from ChromaDB.")
-
-        for i, doc in enumerate(unique_docs):
+        for i, doc in enumerate(retrieved_docs):
             if hasattr(doc, 'metadata') and doc.metadata:
                 print(f"Context {i+1} metadata: {doc.metadata}")
 
     except Exception as e:
-        print(f"Warning: Could not connect to or retrieve from ChromaDB. Proceeding without context. Error: {e}")
-
-
-    # Create unified system prompt for text chat
-    system_prompt = create_unified_system_prompt(persona, retrieved_context_snippets, is_voice=False)
-
-
-    # Combine the system prompt, previous messages, and the new user query.
+        print(f"Warning: Could not retrieve from ChromaDB. Proceeding without context. Error: {e}")
+    
+    # Construct system prompt incorporating persona and retrieved context
+    if retrieved_context_snippets:
+        system_prompt = (
+            f"You are an AI assistant embodying this persona:\n\n{persona.description}\n\n"
+            f"Base all your answers on the following retrieved context where possible."
+            f"If the context doesn't fully answer the user's question, respond using the tone, "
+            f"style, and personality of {persona.name}.\n\n"
+            "--- Relevant Context ---\n"
+            + "\n".join([f"Context {i+1}: {snippet}" for i, snippet in enumerate(retrieved_context_snippets)])
+            + "\n--- End Context ---\n"
+            "Instructions:\n"
+            f"- Stay in character as {persona.name}\n"
+            "- Answer primarily using the provided context\n"
+            "- If context is insufficient, acknowledge it and extrapolate\n"
+            "- Be conversational and engaging"
+        )
+    else:
+        system_prompt = (
+            f"You are an AI assistant embodying this persona:\n\n{persona.description}\n\n"
+            f"Answer in the tone, style, and personality of {persona.name}, "
+            "even if no contextual information is available."
+        )
+    
+    # Combine system prompt, chat history and new user query
     full_chat_history = [{"role": "system", "content": system_prompt}]
     full_chat_history.extend(history_from_db)
     full_chat_history.append({"role": "user", "content": request.user_query})
-
+    
+    # Call the OpenAI chat completion API
     try:
         client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
@@ -367,19 +481,28 @@ async def handle_chat_request(request: ChatRequest, db: Session = Depends(get_db
         print(f"Error calling OpenAI API: {e}")
         raise HTTPException(status_code=500, detail="Failed to get a response from the AI model.")
     
-    user_message_db = ChatMessageDB(conversation_id=conversation.id, role="user", content=request.user_query)
-    ai_message_db = ChatMessageDB(conversation_id=conversation.id, role="assistant", content=ai_message)
+    # Save user message and AI response messages to DB
+    user_message_db = Message(
+        chat_session_id=chat_session.id,
+        user_id=chat_session.user_id,
+        message_type=MessageType.USER,
+        content=request.user_query
+    )
+    ai_message_db = Message(
+        chat_session_id=chat_session.id,
+        user_id=chat_session.user_id,
+        message_type=MessageType.ASSISTANT,
+        content=ai_message
+    )
     db.add(user_message_db)
     db.add(ai_message_db)
     db.commit()
     db.refresh(user_message_db)
     db.refresh(ai_message_db)
 
-
-    # --- Step 4: Return the Final Response ---
+    # Return response with conversation id, AI reply, and retrieved context
     return ChatResponse(
-        conversation_id=conversation.id,
+        conversation_id=chat_session.id,
         ai_response=ai_message,
         retrieved_context=retrieved_context_snippets
     )
-
