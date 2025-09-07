@@ -181,14 +181,14 @@ export function AIChatInterface({ authorName, onClose }: AIChatInterfaceProps) {
       </div>
 
       {/* Messages */}
-      <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
-        <div className="space-y-4">
+      <ScrollArea className="flex-1 p-4 overflow-hidden" ref={scrollAreaRef}>
+        <div className="space-y-4 max-w-full overflow-hidden">
           {messages.map((message) => (
             <div
               key={message.id}
               className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-              <div className={`flex items-start space-x-2 max-w-[80%] ${message.type === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}>
+              <div className={`flex items-start space-x-2 ${message.type === 'user' ? 'max-w-[80%] flex-row-reverse space-x-reverse' : 'max-w-[85%]'}`}>
                 <Avatar className="w-8 h-8 flex-shrink-0">
                   {message.type === 'user' ? (
                     <>
@@ -205,11 +205,13 @@ export function AIChatInterface({ authorName, onClose }: AIChatInterfaceProps) {
                 <div
                   className={`rounded-lg p-3 ${
                     message.type === 'user'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-accent text-accent-foreground'
-                  }`}
+                      ? 'bg-primary text-primary-foreground max-w-fit'
+                      : 'bg-accent text-accent-foreground min-w-0 flex-1'
+                  } overflow-hidden`}
                 >
-                  <p className="text-sm leading-relaxed">{message.content}</p>
+                  <p className="text-sm leading-relaxed chat-message-content">
+                    {message.content}
+                  </p>
                   <p className={`text-xs mt-1 ${
                     message.type === 'user' 
                       ? 'text-primary-foreground/70' 

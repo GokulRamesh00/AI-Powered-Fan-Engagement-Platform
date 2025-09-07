@@ -5,8 +5,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Badge } from './ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { AIChatInterface } from './AIChatInterface';
+import { AIVoiceInterface } from './AIVoiceInterface';
 import { ImageWithFallback } from './ImageWithFallback';
-import { Heart, Users, BookOpen, Video, Gift, DollarSign, Star, Calendar, ExternalLink } from 'lucide-react';
+import { Heart, Users, BookOpen, Video, Gift, DollarSign, Star, Calendar, ExternalLink, Mic } from 'lucide-react';
 
 interface AuthorProfileProps {
   author: any;
@@ -16,6 +17,7 @@ interface AuthorProfileProps {
 export function AuthorProfile({ author, onNavigate }: AuthorProfileProps) {
   const [isFollowing, setIsFollowing] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  const [showVoiceChat, setShowVoiceChat] = useState(false);
 
   if (!author) {
     return (
@@ -129,6 +131,15 @@ export function AuthorProfile({ author, onNavigate }: AuthorProfileProps) {
                       onClick={() => setShowChat(true)}
                     >
                       Chat with AI {author.name.split(' ')[0]}
+                    </Button>
+                    <Button 
+                      className="w-full" 
+                      size="lg"
+                      variant="outline"
+                      onClick={() => setShowVoiceChat(true)}
+                    >
+                      <Mic className="w-4 h-4 mr-2" />
+                      Voice with AI {author.name.split(' ')[0]}
                     </Button>
                     <Button 
                       variant={isFollowing ? "secondary" : "outline"} 
@@ -286,10 +297,22 @@ export function AuthorProfile({ author, onNavigate }: AuthorProfileProps) {
       {/* AI Chat Modal */}
       {showChat && (
         <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-4xl h-[80vh] bg-background border rounded-lg shadow-xl">
+          <div className="w-full max-w-4xl h-[80vh] bg-background border rounded-lg shadow-xl overflow-hidden">
             <AIChatInterface
               authorName={author.name}
               onClose={() => setShowChat(false)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* AI Voice Chat Modal */}
+      {showVoiceChat && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-4xl h-[80vh] bg-background border rounded-lg shadow-xl overflow-hidden">
+            <AIVoiceInterface
+              authorName={author.name}
+              onClose={() => setShowVoiceChat(false)}
             />
           </div>
         </div>

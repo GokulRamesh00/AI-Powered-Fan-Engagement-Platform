@@ -16,6 +16,18 @@ redis
 pydantic
 pydantic-settings
 requests
-# Add document/scraping libraries here as needed, e.g.:
-# beautifulsoup4
-# pypdf2
+# AI and Document Processing
+openai
+langchain
+langchain-openai
+langchain-community
+langchain-chroma
+chromadb
+
+# Document Processing
+beautifulsoup4
+pypdf2
+pypdf
+
+# Scraping
+scrapy

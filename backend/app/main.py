@@ -24,7 +24,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include the onboarding router in the main app
+# Include the routers in the main app
 app.include_router(onboarding.router)
 app.include_router(chat.router)
 

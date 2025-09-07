@@ -129,9 +129,9 @@ button:focus-visible {
   a:hover {
     color: #747bff;
   }
-  button {
+  /* button {
     background-color: #f9f9f9;
-  }
+  } */
 }
 
 @import "tailwindcss";
@@ -246,4 +246,34 @@ button:focus-visible {
 
 html {
   font-size: var(--font-size);
+}
+
+/* Aggressive text wrapping for chat messages */
+.chat-message-content {
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+  hyphens: auto !important;
+  white-space: pre-wrap !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  display: inline-block !important;
+  width: fit-content !important;
+  min-width: 0 !important;
+}
+
+.chat-message-content * {
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+  max-width: 100% !important;
+}
+
+/* Ensure user messages don't get too wide */
+.bg-primary .chat-message-content {
+  max-width: 300px !important;
+}
+
+/* AI responses can be wider but still contained */
+.bg-accent .chat-message-content,
+.bg-muted .chat-message-content {
+  max-width: 100% !important;
 }
