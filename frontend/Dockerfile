@@ -14,4 +14,4 @@ RUN npm install
 COPY . .
 
 # Build the frontend app
-RUN npm run dev &&
+RUN npm run dev && echo "done"

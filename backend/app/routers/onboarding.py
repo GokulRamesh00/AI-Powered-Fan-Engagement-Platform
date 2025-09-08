@@ -13,6 +13,7 @@ router = APIRouter(
 )
 
 @router.post("/")
+@router.post("")
 async def create_onboarding_profile(
     background_tasks: BackgroundTasks,
     instagram_urls: Optional[List[str]] = Form(None, description="The user's Instagram URL."),
